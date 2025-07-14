@@ -1,3 +1,8 @@
+provider "aws" {
+  region = "us-east-1" #specify the AWS region you want to use
+  
+}
+
 #defining the DynamoDB table that will be used by the Lambda function
 resource "aws_dynamodb_table" "lambda_db_table" {
   name         = "lambda_db_table"
