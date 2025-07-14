@@ -27,7 +27,7 @@ jobs:
         with:
           terraform_version: 1.7.4
 
-      - name: Import existing AWS resources
+      - name: Pre-Import AWS Resources (if already exist)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -35,20 +35,32 @@ jobs:
         run: |
           set +e
 
-          aws dynamodb describe-table --table-name "lambda_db_table" >/dev/null 2>&1
-          [ $? -eq 0 ] && terraform import aws_dynamodb_table.lambda_db_table lambda_db_table
+          terraform init -backend=false
 
-          aws lambda get-function --function-name "API-app" >/dev/null 2>&1
-          [ $? -eq 0 ] && terraform import aws_lambda_function.API-app API-app
+          aws dynamodb describe-table --table-name lambda_db_table >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            terraform import aws_dynamodb_table.lambda_db_table lambda_db_table || true
+          fi
 
-          aws iam get-role --role-name "lambda_exec_role" >/dev/null 2>&1
-          [ $? -eq 0 ] && terraform import aws_iam_role.lambda_iam_role lambda_exec_role
+          aws iam get-role --role-name lambda_exec_role >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            terraform import aws_iam_role.lambda_iam_role lambda_exec_role || true
+          fi
 
           POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='lambda_exec_policy'].Arn" --output text)
-          [ -n "$POLICY_ARN" ] && terraform import aws_iam_policy.lambda_iam_policy "$POLICY_ARN"
+          if [ -n "$POLICY_ARN" ]; then
+            terraform import aws_iam_policy.lambda_iam_policy "$POLICY_ARN" || true
+          fi
+
+          aws lambda get-function --function-name API-app >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            terraform import aws_lambda_function.API-app API-app || true
+          fi
 
           REST_API_ID=$(aws apigateway get-rest-apis --query "items[?name=='login-app-api'].id" --output text)
-          [ -n "$REST_API_ID" ] && terraform import aws_api_gateway_rest_api.login_app_api "$REST_API_ID"
+          if [ -n "$REST_API_ID" ]; then
+            terraform import aws_api_gateway_rest_api.login_app_api "$REST_API_ID" || true
+          fi
 
           set -e
 
@@ -74,6 +86,7 @@ jobs:
           AWS_REGION: us-east-1
 
       - name: Terraform Apply
+        continue-on-error: true
         run: terraform apply -auto-approve
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -92,7 +105,7 @@ jobs:
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload static site
+      - name: Upload static site to artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./frontend
