@@ -9,6 +9,13 @@ on:
       - 'frontend/**'
       - '.github/workflows/terraform.yml'
 
+permissions:
+  id-token: write
+  pages: write
+  actions: read
+  contents: read
+  pull-requests: write
+
 jobs:
   terraform:
     name: Terraform Apply
