@@ -16,6 +16,7 @@ permissions:
   contents: read
   pull-requests: write
 
+
 jobs:
   terraform:
     name: Terraform Apply
@@ -112,7 +113,17 @@ jobs:
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload static site to artifact
+      - name: Replace API URL in HTML
+        run: |
+          API_ID=$(aws apigateway get-rest-apis --query "items[?name=='login-app-api'].id" --output text --region us-east-1)
+          API_URL="https://${API_ID}.execute-api.us-east-1.amazonaws.com/dev/login"
+          echo "Replacing placeholder with real API URL: $API_URL"
+          sed -i "s|https://SEU_API_GATEWAY_URL/dev/login|$API_URL|g" ./frontend/index.html
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./frontend
