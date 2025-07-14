@@ -27,52 +27,30 @@ jobs:
         with:
           terraform_version: 1.7.4
 
-      - name: Import existing AWS resources (if they exist)
+      - name: Import existing AWS resources
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-1
         run: |
-          echo "Checking for existing resources to import..."
+          set +e
 
-          set +e  # prevent pipeline from stopping on errors
+          aws dynamodb describe-table --table-name "lambda_db_table" >/dev/null 2>&1
+          [ $? -eq 0 ] && terraform import aws_dynamodb_table.lambda_db_table lambda_db_table
 
-          # Import DynamoDB Table
-          TABLE_NAME="lambda_db_table"
-          EXISTS=$(aws dynamodb describe-table --table-name "$TABLE_NAME" 2>/dev/null || true)
-          if [ -n "$EXISTS" ]; then
-            terraform import aws_dynamodb_table.lambda_db_table "$TABLE_NAME"
-          fi
+          aws lambda get-function --function-name "API-app" >/dev/null 2>&1
+          [ $? -eq 0 ] && terraform import aws_lambda_function.API-app API-app
 
-          # Import Lambda Function
-          LAMBDA_NAME="API-app"
-          EXISTS=$(aws lambda get-function --function-name "$LAMBDA_NAME" 2>/dev/null || true)
-          if [ -n "$EXISTS" ]; then
-            terraform import aws_lambda_function.API-app "$LAMBDA_NAME"
-          fi
+          aws iam get-role --role-name "lambda_exec_role" >/dev/null 2>&1
+          [ $? -eq 0 ] && terraform import aws_iam_role.lambda_iam_role lambda_exec_role
 
-          # Import IAM Role
-          ROLE_NAME="lambda_exec_role"
-          EXISTS=$(aws iam get-role --role-name "$ROLE_NAME" 2>/dev/null || true)
-          if [ -n "$EXISTS" ]; then
-            terraform import aws_iam_role.lambda_iam_role "$ROLE_NAME"
-          fi
+          POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='lambda_exec_policy'].Arn" --output text)
+          [ -n "$POLICY_ARN" ] && terraform import aws_iam_policy.lambda_iam_policy "$POLICY_ARN"
 
-          # Import IAM Policy
-          POLICY_NAME="lambda_exec_policy"
-          POLICY_ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='$POLICY_NAME'].Arn" --output text)
-          if [ -n "$POLICY_ARN" ]; then
-            terraform import aws_iam_policy.lambda_iam_policy "$POLICY_ARN"
-          fi
+          REST_API_ID=$(aws apigateway get-rest-apis --query "items[?name=='login-app-api'].id" --output text)
+          [ -n "$REST_API_ID" ] && terraform import aws_api_gateway_rest_api.login_app_api "$REST_API_ID"
 
-          # Import API Gateway
-          API_NAME="login-app-api"
-          REST_API_ID=$(aws apigateway get-rest-apis --query "items[?name=='$API_NAME'].id" --output text)
-          if [ -n "$REST_API_ID" ]; then
-            terraform import aws_api_gateway_rest_api.login_app_api "$REST_API_ID"
-          fi
-
-          set -e  # restore default error behavior
+          set -e
 
       - name: Terraform Init
         run: terraform init
@@ -114,7 +92,7 @@ jobs:
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload static site to artifact
+      - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./frontend
