@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Login</title>
+    <style>
+        body {
+            background-color: #222629;
+            font-family: system-ui;
+        }
+        h1 {
+            color: #FFFFFF;
+            margin-left: 20px;
+        }
+        label {
+            color: #86C232;
+            font-size: 20px;
+            margin-left: 20px;
+            display: block;
+            margin-top: 10px;
+        }
+        input {
+            font-size: 18px;
+            margin-left: 20px;
+            width: 200px;
+            padding: 5px;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #86C232;
+            border: none;
+            color: #FFFFFF;
+            font-size: 18px;
+            font-weight: bold;
+            margin-left: 20px;
+            margin-top: 20px;
+            width: 150px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        #welcome {
+            color: #FFFFFF;
+            font-size: 24px;
+            margin-left: 20px;
+            margin-top: 30px;
+        }
+    </style>
+    <script>
+        const callLoginAPI = () => {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            const headers = new Headers();
+            headers.append("Content-Type", "application/json");
+
+            const body = JSON.stringify({ username, password });
+
+            const requestOptions = {
+                method: 'POST',
+                headers: headers,
+                body: body,
+                redirect: 'follow'
+            };
+
+            // Substitua essa URL pela URL do seu API Gateway
+            fetch("https://SEU_API_GATEWAY_URL/dev/login", requestOptions)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.message === "Login successful!") {
+                        document.body.innerHTML = `<h1 id="welcome">Welcome, ${username}!</h1>`;
+                    } else {
+                        alert("Login failed. Check your credentials.");
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert("An error occurred.");
+                });
+        }
+    </script>
+</head>
+<body>
+    <h1>Admin Login</h1>
+    <form onsubmit="event.preventDefault(); callLoginAPI();">
+        <label for="username">Username:</label>
+        <input type="text" id="username" required>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" required>
+
+        <button type="submit">LOGIN</button>
+    </form>
+</body>
+</html>
