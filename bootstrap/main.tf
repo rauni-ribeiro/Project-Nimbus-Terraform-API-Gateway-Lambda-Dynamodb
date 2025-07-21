@@ -40,7 +40,7 @@ resource "aws_iam_policy" "lambda_iam_policy" {
           "logs:CreateLogGroup"
         ],
         Effect   = "Allow",
-        Resource = "${aws_dynamodb_table.lambda_db_table.arn}"
+        Resource = aws_dynamodb_table.lambda_db_table.arn
       }
     ]
   })
@@ -77,19 +77,41 @@ resource "aws_lambda_function" "API-app" {
 resource "aws_api_gateway_rest_api" "login_app_api" {
   name = "login-app-api"
   body = jsonencode({
-    openapi = "3.0.1"
+    openapi = "3.0.1",
     info = {
-      title   = "example"
+      title   = "example",
       version = "1.0"
-    }
+    },
     paths = {
       "/login" = {
         post = {
+          responses = {
+            "200" = {
+              description = "200 response",
+              headers = {
+                "Access-Control-Allow-Origin" = { schema = { type = "string" } },
+                "Access-Control-Allow-Headers" = { schema = { type = "string" } },
+                "Access-Control-Allow-Methods" = { schema = { type = "string" } }
+              }
+            }
+          },
           x-amazon-apigateway-integration = {
-            type                  = "AWS_PROXY"
-            httpMethod            = "POST"
-            uri                   = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations"
-            IntegrationHTTPMethod = "POST"
+            uri                   = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations",
+            httpMethod            = "POST",
+            type                  = "AWS_PROXY",
+            integrationHttpMethod = "POST",
+            passthroughBehavior   = "WHEN_NO_MATCH",
+            contentHandling       = "CONVERT_TO_TEXT",
+            responses = {
+              default = {
+                statusCode = "200",
+                responseParameters = {
+                  "method.response.header.Access-Control-Allow-Origin" = "'*'",
+                  "method.response.header.Access-Control-Allow-Headers" = "'*'",
+                  "method.response.header.Access-Control-Allow-Methods" = "'*'"
+                }
+              }
+            }
           }
         }
       }
@@ -98,7 +120,7 @@ resource "aws_api_gateway_rest_api" "login_app_api" {
 }
 
 resource "aws_api_gateway_deployment" "api-deployment" {
-  depends_on  = [aws_api_gateway_rest_api.login_app_api]
+  depends_on = [aws_api_gateway_rest_api.login_app_api]
   rest_api_id = aws_api_gateway_rest_api.login_app_api.id
 }
 
