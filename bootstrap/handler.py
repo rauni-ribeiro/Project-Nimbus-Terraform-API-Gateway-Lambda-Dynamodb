@@ -1,26 +1,86 @@
-import boto3
 import json
+import boto3
+import os
 
-
-
+dynamodb = boto3.client('dynamodb')
+table_name = os.environ.get('TABLE_NAME', 'lambda_db_table')
 
 def lambda_handler(event, context):
-    body = json.loads(event['body'])
-    username = body["username"]
-    password = body["password"]
-
-    dynamodb_APP = boto3.resource('dynamodb')
-    table = dynamodb_APP.Table('lambda_db_table')  # DynamoDB APP table
-    response = table.get_item(Key={"id": username}) # DynamoDB APP table
-    item = response.get('Item')
-    
-    if item and item["password"] == password:  #if item exists and item("password") matches the provided password, then return success
+    # Responder requisições de pré-vôo (CORS)
+    if event['httpMethod'] == 'OPTIONS':
         return {
             'statusCode': 200,
-            'body': json.dumps({"message": "Login successful!"})
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST,OPTIONS'
+            },
+            'body': json.dumps('CORS preflight response')
         }
-    else:
-        return {
-            'statusCode': 401,
-            'body': json.dumps('Invalid username or password')
-        }
+
+    # Requisição POST para login
+    if event['httpMethod'] == 'POST':
+        try:
+            body = json.loads(event['body'])
+            username = body.get('username')
+            password = body.get('password')
+
+            if not username or not password:
+                return {
+                    'statusCode': 400,
+                    'headers': {
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'message': 'Missing username or password'})
+                }
+
+            response = dynamodb.get_item(
+                TableName=table_name,
+                Key={'id': {'S': username}}
+            )
+
+            item = response.get('Item')
+            if not item:
+                return {
+                    'statusCode': 401,
+                    'headers': {
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'message': 'Invalid credentials'})
+                }
+
+            stored_password = item.get('password', {}).get('S')
+            if stored_password == password:
+                return {
+                    'statusCode': 200,
+                    'headers': {
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'message': 'Login successful'})
+                }
+            else:
+                return {
+                    'statusCode': 401,
+                    'headers': {
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'message': 'Invalid credentials'})
+                }
+
+        except Exception as e:
+            return {
+                'statusCode': 500,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'message': f'Error: {str(e)}'})
+            }
+
+    # Método não suportado
+    return {
+        'statusCode': 405,
+        'headers': {
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps({'message': 'Method not allowed'})
+    }

@@ -1,3 +1,5 @@
+# main.tf
+
 provider "aws" {
   region = "us-east-1"
 }
@@ -38,6 +40,8 @@ resource "aws_iam_policy" "lambda_iam_policy" {
           "dynamodb:Scan",
           "dynamodb:Query",
           "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
         ],
         Effect   = "Allow",
         Resource = aws_dynamodb_table.lambda_db_table.arn
@@ -76,87 +80,72 @@ resource "aws_lambda_function" "API-app" {
 
 resource "aws_api_gateway_rest_api" "login_app_api" {
   name = "login-app-api"
-}
-
-resource "aws_api_gateway_resource" "login_resource" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  parent_id   = aws_api_gateway_rest_api.login_app_api.root_resource_id
-  path_part   = "login"
-}
-
-resource "aws_api_gateway_method" "login_method" {
-  rest_api_id   = aws_api_gateway_rest_api.login_app_api.id
-  resource_id   = aws_api_gateway_resource.login_resource.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "login_integration" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  resource_id = aws_api_gateway_resource.login_resource.id
-  http_method = aws_api_gateway_method.login_method.http_method
-  integration_http_method = "POST"
-  type = "AWS_PROXY"
-  uri  = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations"
-}
-
-resource "aws_api_gateway_method" "options_method" {
-  rest_api_id   = aws_api_gateway_rest_api.login_app_api.id
-  resource_id   = aws_api_gateway_resource.login_resource.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "options_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.login_app_api.id
-  resource_id             = aws_api_gateway_resource.login_resource.id
-  http_method             = aws_api_gateway_method.options_method.http_method
-  type                    = "MOCK"
-  integration_http_method = "OPTIONS"
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "options_response" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  resource_id = aws_api_gateway_resource.login_resource.id
-  http_method = aws_api_gateway_method.options_method.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true,
-    "method.response.header.Access-Control-Allow-Methods" = true,
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "options_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  resource_id = aws_api_gateway_resource.login_resource.id
-  http_method = aws_api_gateway_method.options_method.http_method
-  status_code = aws_api_gateway_method_response.options_response.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'",
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-
-  response_templates = {
-    "application/json" = ""
-  }
+  body = jsonencode({
+    openapi = "3.0.1",
+    info = {
+      title   = "example",
+      version = "1.0"
+    },
+    paths = {
+      "/login" = {
+        options = {
+          x-amazon-apigateway-integration = {
+            type = "mock",
+            requestTemplates = {
+              "application/json" = "{ \"statusCode\": 200 }"
+            },
+            responses = {
+              default = {
+                statusCode = "200",
+                responseParameters = {
+                  "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'",
+                  "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'",
+                  "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+                },
+                responseTemplates = {
+                  "application/json" = ""
+                }
+              }
+            }
+          },
+          responses = {
+            "200" = {
+              description = "Default response for CORS method",
+              headers = {
+                "Access-Control-Allow-Headers" = {
+                  schema = {
+                    type = "string"
+                  }
+                },
+                "Access-Control-Allow-Methods" = {
+                  schema = {
+                    type = "string"
+                  }
+                },
+                "Access-Control-Allow-Origin" = {
+                  schema = {
+                    type = "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        post = {
+          x-amazon-apigateway-integration = {
+            type                  = "AWS_PROXY",
+            httpMethod            = "POST",
+            uri                   = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations",
+            IntegrationHTTPMethod = "POST"
+          }
+        }
+      }
+    }
+  })
 }
 
 resource "aws_api_gateway_deployment" "api-deployment" {
-  depends_on = [
-    aws_api_gateway_integration.login_integration,
-    aws_api_gateway_integration.options_integration
-  ]
+  depends_on = [aws_api_gateway_rest_api.login_app_api]
   rest_api_id = aws_api_gateway_rest_api.login_app_api.id
 }
 
