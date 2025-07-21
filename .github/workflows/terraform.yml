@@ -76,6 +76,15 @@ jobs:
               terraform import aws_lambda_permission.allow_api_gateway API-app/AllowExecutionFromAPIGateway || true
             fi
 
+          # Import DynamoDB table item (admin_credentials)
+          terraform import aws_dynamodb_table_item.admin_credentials lambda_db_table|{"id":"rauni"} || true
+
+
+          # Import API Gateway Stage
+          terraform import aws_api_gateway_stage.dev-stage $(aws apigateway get-rest-apis --query "items[?name=='login-app-api'].id" --output text)/dev || true
+
+
+
 
           set -e
 
