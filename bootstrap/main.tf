@@ -136,3 +136,29 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   # The source ARN is the ARN of the API Gateway stage
   source_arn = "${aws_api_gateway_rest_api.login_app_api.execution_arn}/*/*"
 }
+
+resource "aws_api_gateway_method_response" "method_response_200" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  resource_id = aws_api_gateway_resource.login_resource.id
+  http_method = aws_api_gateway_method.login_method.http_method
+  status_code = "200"
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "integration_response_200" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  resource_id = aws_api_gateway_resource.login_resource.id
+  http_method = aws_api_gateway_method.login_method.http_method
+  status_code = aws_api_gateway_method_response.method_response_200.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+  }
+}
