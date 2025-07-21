@@ -37,7 +37,7 @@ resource "aws_iam_policy" "lambda_iam_policy" {
           "dynamodb:DeleteItem",
           "dynamodb:Scan",
           "dynamodb:Query",
-          "logs:CreateLogGroup"
+          "logs:CreateLogGroup",
         ],
         Effect   = "Allow",
         Resource = aws_dynamodb_table.lambda_db_table.arn
@@ -76,51 +76,87 @@ resource "aws_lambda_function" "API-app" {
 
 resource "aws_api_gateway_rest_api" "login_app_api" {
   name = "login-app-api"
-  body = jsonencode({
-    openapi = "3.0.1",
-    info = {
-      title   = "example",
-      version = "1.0"
-    },
-    paths = {
-      "/login" = {
-        post = {
-          responses = {
-            "200" = {
-              description = "200 response",
-              headers = {
-                "Access-Control-Allow-Origin" = { schema = { type = "string" } },
-                "Access-Control-Allow-Headers" = { schema = { type = "string" } },
-                "Access-Control-Allow-Methods" = { schema = { type = "string" } }
-              }
-            }
-          },
-          x-amazon-apigateway-integration = {
-            uri                   = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations",
-            httpMethod            = "POST",
-            type                  = "AWS_PROXY",
-            integrationHttpMethod = "POST",
-            passthroughBehavior   = "WHEN_NO_MATCH",
-            contentHandling       = "CONVERT_TO_TEXT",
-            responses = {
-              default = {
-                statusCode = "200",
-                responseParameters = {
-                  "method.response.header.Access-Control-Allow-Origin" = "'*'",
-                  "method.response.header.Access-Control-Allow-Headers" = "'*'",
-                  "method.response.header.Access-Control-Allow-Methods" = "'*'"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  })
+}
+
+resource "aws_api_gateway_resource" "login_resource" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  parent_id   = aws_api_gateway_rest_api.login_app_api.root_resource_id
+  path_part   = "login"
+}
+
+resource "aws_api_gateway_method" "login_method" {
+  rest_api_id   = aws_api_gateway_rest_api.login_app_api.id
+  resource_id   = aws_api_gateway_resource.login_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "login_integration" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  resource_id = aws_api_gateway_resource.login_resource.id
+  http_method = aws_api_gateway_method.login_method.http_method
+  integration_http_method = "POST"
+  type = "AWS_PROXY"
+  uri  = "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${aws_lambda_function.API-app.arn}/invocations"
+}
+
+resource "aws_api_gateway_method" "options_method" {
+  rest_api_id   = aws_api_gateway_rest_api.login_app_api.id
+  resource_id   = aws_api_gateway_resource.login_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.login_app_api.id
+  resource_id             = aws_api_gateway_resource.login_resource.id
+  http_method             = aws_api_gateway_method.options_method.http_method
+  type                    = "MOCK"
+  integration_http_method = "OPTIONS"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "options_response" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  resource_id = aws_api_gateway_resource.login_resource.id
+  http_method = aws_api_gateway_method.options_method.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true,
+    "method.response.header.Access-Control-Allow-Methods" = true,
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
+  resource_id = aws_api_gateway_resource.login_resource.id
+  http_method = aws_api_gateway_method.options_method.http_method
+  status_code = aws_api_gateway_method_response.options_response.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'",
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+
+  response_templates = {
+    "application/json" = ""
+  }
 }
 
 resource "aws_api_gateway_deployment" "api-deployment" {
-  depends_on = [aws_api_gateway_rest_api.login_app_api]
+  depends_on = [
+    aws_api_gateway_integration.login_integration,
+    aws_api_gateway_integration.options_integration
+  ]
   rest_api_id = aws_api_gateway_rest_api.login_app_api.id
 }
 
