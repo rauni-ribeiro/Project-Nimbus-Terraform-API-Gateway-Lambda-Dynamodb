@@ -70,6 +70,13 @@ jobs:
             terraform import aws_api_gateway_rest_api.login_app_api "$REST_API_ID" || true
           fi
 
+          # Import Lambda Permission (if it exists)
+          PERM_EXISTS=$(aws lambda get-policy --function-name API-app --query "Policy" --output text 2>/dev/null || true)
+            if [[ "$PERM_EXISTS" != "None" && -n "$PERM_EXISTS" ]]; then
+              terraform import aws_lambda_permission.allow_api_gateway API-app/AllowExecutionFromAPIGateway || true
+            fi
+
+
           set -e
 
       - name: Terraform Init
