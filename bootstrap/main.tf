@@ -1,9 +1,7 @@
 provider "aws" {
-  region = "us-east-1" #specify the AWS region you want to use
-  
+  region = "us-east-1"
 }
 
-#defining the DynamoDB table that will be used by the Lambda function
 resource "aws_dynamodb_table" "lambda_db_table" {
   name         = "lambda_db_table"
   billing_mode = "PAY_PER_REQUEST"
@@ -13,11 +11,8 @@ resource "aws_dynamodb_table" "lambda_db_table" {
     name = "id"
     type = "S"
   }
-
-
 }
 
-#creating a DynamoDB table item to be used by the Lambda function (name)
 resource "aws_dynamodb_table_item" "admin_credentials" {
   table_name = aws_dynamodb_table.lambda_db_table.name
   hash_key   = "id"
@@ -28,9 +23,6 @@ resource "aws_dynamodb_table_item" "admin_credentials" {
   })
 }
 
-
-
-#defining the policy for the Lambda function
 resource "aws_iam_policy" "lambda_iam_policy" {
   name        = "lambda_exec_policy"
   description = "IAM policy for Lambda execution role"
@@ -41,22 +33,19 @@ resource "aws_iam_policy" "lambda_iam_policy" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:GetItem",
-          "dynamodb:UpdateItem", #this one is optional
-          "dynamodb:DeleteItem", #this one is optional
-          "dynamodb:Scan",       #this one is optional
-          "dynamodb:Query",      #this one is optional
-          "logs:CreateLogGroup", #this one is optional
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "logs:CreateLogGroup"
         ],
         Effect   = "Allow",
-        Resource = "${aws_dynamodb_table.lambda_db_table.arn}" #specify which DynamoDB table you want to allow access to
-        #(this is considered a good practice)
+        Resource = "${aws_dynamodb_table.lambda_db_table.arn}"
       }
     ]
   })
 }
 
-
-#creating an IAM role for the Lambda function
 resource "aws_iam_role" "lambda_iam_role" {
   name = "lambda_exec_role"
   assume_role_policy = jsonencode({
@@ -71,26 +60,20 @@ resource "aws_iam_role" "lambda_iam_role" {
   })
 }
 
-#assigning the lambda policy to the IAM role
 resource "aws_iam_role_policy_attachment" "policy-role-attachment" {
   role       = aws_iam_role.lambda_iam_role.name
   policy_arn = aws_iam_policy.lambda_iam_policy.arn
 }
 
-#creating the lambda function that will be invoked in the API Gateway
 resource "aws_lambda_function" "API-app" {
   function_name = "API-app"
-  role          = aws_iam_role.lambda_iam_role.arn #parsing the role from the IAM role created above
+  role          = aws_iam_role.lambda_iam_role.arn
   handler       = "handler.lambda_handler"
   runtime       = "python3.12"
-
-  filename = "function.zip" #the zip file containing the lambda function code
-
-  source_code_hash = filebase64sha256("function.zip") #hash of the zip file to ensure the code is up to date
-
+  filename      = "function.zip"
+  source_code_hash = filebase64sha256("function.zip")
 }
 
-#Creating the Login app REST API
 resource "aws_api_gateway_rest_api" "login_app_api" {
   name = "login-app-api"
   body = jsonencode({
@@ -113,14 +96,12 @@ resource "aws_api_gateway_rest_api" "login_app_api" {
     }
   })
 }
-#
-resource "aws_api_gateway_deployment" "api-deployment" {
-  depends_on = [aws_api_gateway_rest_api.login_app_api]
 
+resource "aws_api_gateway_deployment" "api-deployment" {
+  depends_on  = [aws_api_gateway_rest_api.login_app_api]
   rest_api_id = aws_api_gateway_rest_api.login_app_api.id
 }
 
-#creating a stage for the API Gateway
 resource "aws_api_gateway_stage" "dev-stage" {
   stage_name    = "dev"
   rest_api_id   = aws_api_gateway_rest_api.login_app_api.id
@@ -132,33 +113,5 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.API-app.function_name
   principal     = "apigateway.amazonaws.com"
-
-  # The source ARN is the ARN of the API Gateway stage
-  source_arn = "${aws_api_gateway_rest_api.login_app_api.execution_arn}/*/*"
-}
-
-resource "aws_api_gateway_method_response" "method_response_200" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  resource_id = aws_api_gateway_resource.login_resource.id
-  http_method = aws_api_gateway_method.login_method.http_method
-  status_code = "200"
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
-  }
-}
-
-resource "aws_api_gateway_integration_response" "integration_response_200" {
-  rest_api_id = aws_api_gateway_rest_api.login_app_api.id
-  resource_id = aws_api_gateway_resource.login_resource.id
-  http_method = aws_api_gateway_method.login_method.http_method
-  status_code = aws_api_gateway_method_response.method_response_200.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'*'"
-  }
+  source_arn    = "${aws_api_gateway_rest_api.login_app_api.execution_arn}/*/*"
 }
