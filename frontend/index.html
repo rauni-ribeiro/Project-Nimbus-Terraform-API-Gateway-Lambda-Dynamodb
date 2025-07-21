@@ -53,56 +53,46 @@
   </form>
 
   <!-- Script de variáveis externas (opcional) -->
-  <script src="env.js"></script>
+ <script>
+  async function enviarLogin() {
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
-  <script>
-    async function enviarLogin() {
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+    const endpoint = "https://akftsqumm9.execute-api.us-east-1.amazonaws.com/dev";
 
-      const defaultEndpoint = "https://SEU_ENDPOINT.execute-api.us-east-1.amazonaws.com/dev"; // substitua se quiser
-      const fallbackEndpoint = "https://API-ID.execute-api.us-east-1.amazonaws.com/dev"; // substitua pelo ID real
-      const endpoints = [
-        window.API_ENDPOINT || defaultEndpoint,
-        fallbackEndpoint
-      ];
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username, password })
+      });
 
-      let response;
-      let data;
-      let success = false;
+      const data = await response.json();
 
-      for (let url of endpoints) {
-        try {
-          response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
-          });
-
-          if (response.ok) {
-            data = await response.json();
-            success = true;
-            break;
-          }
-        } catch (error) {
-          console.warn(`Erro ao tentar ${url}:`, error);
-        }
-      }
-
-      const messageEl = document.getElementById("message");
-      if (success) {
-        messageEl.textContent = data.message || "Login bem-sucedido!";
-        messageEl.style.color = "green";
+      if (response.ok) {
+        // Substitui toda a página por uma tela de boas-vindas
+        document.body.innerHTML = `
+          <div style="text-align: center; padding-top: 100px;">
+            <h1 style="font-size: 36px; color: #4CAF50;">Welcome, ${username}!</h1>
+            <p style="font-size: 18px; color: #333;">You have successfully logged in.</p>
+          </div>
+        `;
       } else {
-        messageEl.textContent = "Erro no login ou endpoint indisponível.";
-        messageEl.style.color = "red";
+        alert("Erro no login: " + (data.message || response.statusText));
       }
-    }
 
-    document.getElementById("loginForm").addEventListener("submit", function (event) {
-      event.preventDefault();
-      enviarLogin();
-    });
-  </script>
+    } catch (error) {
+      console.error("Erro ao conectar com o endpoint:", error);
+      alert("Erro de conexão. Verifique sua rede ou tente mais tarde.");
+    }
+  }
+
+  document.getElementById("loginForm").addEventListener("submit", function (event) {
+    event.preventDefault();
+    enviarLogin();
+  });
+</script>
 </body>
 </html>
