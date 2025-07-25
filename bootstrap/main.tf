@@ -25,6 +25,7 @@ resource "aws_dynamodb_table_item" "admin_credentials" {
   })
 }
 
+#this is a placeholder messsage - just trying to get the code to work :)
 resource "aws_iam_policy" "lambda_iam_policy" {
   name        = "lambda_exec_policy"
   description = "IAM policy for Lambda execution role"

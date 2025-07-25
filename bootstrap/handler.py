@@ -5,20 +5,22 @@ import os
 dynamodb = boto3.client('dynamodb')
 table_name = os.environ.get('TABLE_NAME', 'lambda_db_table')
 
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+}
+
 def lambda_handler(event, context):
-    # Responder requisições de pré-vôo (CORS)
+    # Answer preflight requests for CORS
     if event['httpMethod'] == 'OPTIONS':
         return {
             'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Allow-Methods': 'POST,OPTIONS'
-            },
+            'headers': CORS_HEADERS,
             'body': json.dumps('CORS preflight response')
         }
 
-    # Requisição POST para login
+    # Post request for login
     if event['httpMethod'] == 'POST':
         try:
             body = json.loads(event['body'])
@@ -28,9 +30,7 @@ def lambda_handler(event, context):
             if not username or not password:
                 return {
                     'statusCode': 400,
-                    'headers': {
-                        'Access-Control-Allow-Origin': '*'
-                    },
+                    'headers': CORS_HEADERS,
                     'body': json.dumps({'message': 'Missing username or password'})
                 }
 
@@ -43,9 +43,7 @@ def lambda_handler(event, context):
             if not item:
                 return {
                     'statusCode': 401,
-                    'headers': {
-                        'Access-Control-Allow-Origin': '*'
-                    },
+                    'headers': CORS_HEADERS,
                     'body': json.dumps({'message': 'Invalid credentials'})
                 }
 
@@ -53,34 +51,26 @@ def lambda_handler(event, context):
             if stored_password == password:
                 return {
                     'statusCode': 200,
-                    'headers': {
-                        'Access-Control-Allow-Origin': '*'
-                    },
+                    'headers': CORS_HEADERS,
                     'body': json.dumps({'message': 'Login successful'})
                 }
             else:
                 return {
                     'statusCode': 401,
-                    'headers': {
-                        'Access-Control-Allow-Origin': '*'
-                    },
+                    'headers': CORS_HEADERS,
                     'body': json.dumps({'message': 'Invalid credentials'})
                 }
 
         except Exception as e:
             return {
                 'statusCode': 500,
-                'headers': {
-                    'Access-Control-Allow-Origin': '*'
-                },
+                    'headers': CORS_HEADERS,
                 'body': json.dumps({'message': f'Error: {str(e)}'})
             }
 
-    # Método não suportado
+    # non supported HTTP methods
     return {
         'statusCode': 405,
-        'headers': {
-            'Access-Control-Allow-Origin': '*'
-        },
+        'headers': CORS_HEADERS,
         'body': json.dumps({'message': 'Method not allowed'})
     }
